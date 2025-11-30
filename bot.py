@@ -5,8 +5,8 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 import asyncio
 
-BOT_TOKEN = "ВАШ_ТОКЕН"
-ADMIN_ID = 123456789  # замените на ваш Telegram ID
+BOT_TOKEN = "8144352720:AAEoGHZv9ngCzwQqeEo_OdnuA-BfMtsEtZM"
+ADMIN_ID = 8171485600  # замените на ваш Telegram ID
 user_counter = 0
 
 bot = Bot(token=BOT_TOKEN)
