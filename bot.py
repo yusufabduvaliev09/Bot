@@ -1,92 +1,85 @@
-from aiogram import Bot, Dispatcher, Router, types
-from aiogram.filters import Command
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from aiogram.fsm.state import StatesGroup, State
-from aiogram.fsm.context import FSMContext
-import asyncio
+from flask import Flask, render_template_string, request, redirect
+import telebot
+import random
 
-BOT_TOKEN = "8144352720:AAEoGHZv9ngCzwQqeEo_OdnuA-BfMtsEtZM"
-ADMIN_ID = 8171485600  # замените на ваш Telegram ID
-user_counter = 0
+BOT_TOKEN = "8144352720:AAEoGHZv9ngCzwQqeEo_OdnuA-BfMtsEtZM"  # вставь свой токен
+bot = telebot.TeleBot(BOT_TOKEN)
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
-rt = Router()
-dp.include_router(rt)
+app = Flask(__name__)
 
+# HTML страница регистрации
+html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Регистрация Abu Cargo</title>
+    <style>
+        body { font-family: Arial; background:#f5f5f5; padding:30px; }
+        .box { background:white; padding:20px; border-radius:10px; max-width:400px; margin:auto; box-shadow:0 0 10px #ccc; }
+        input, select { width:100%; padding:10px; margin:10px 0; border:1px solid #ddd; border-radius:5px; }
+        button { background:#0088cc; color:white; border:none; padding:10px; width:100%; border-radius:5px; }
+    </style>
+</head>
+<body>
+<div class="box">
+    <h2>Регистрация Abu Cargo</h2>
+    <form action="/register" method="post">
+        <input name="fio" placeholder="Введите ФИО" required>
+        <input name="phone" placeholder="Введите номер телефона" required>
+        <label>Выберите ПВЗ:</label>
+        <select name="pvz" required>
+            <option>ПВЗ №1 — Бишкек</option>
+            <option>ПВЗ №2 — Ош</option>
+            <option>ПВЗ №3 — Джалал-Абад</option>
+        </select>
+        <button type="submit">Регистрация</button>
+    </form>
+</div>
+</body>
+</html>
+"""
 
-class Form(StatesGroup):
-    fio = State()
-    phone = State()
-    pvz = State()
+@app.route('/')
+def home():
+    return html
 
+@app.route('/register', methods=['POST'])
+def register():
+    fio = request.form['fio']
+    phone = request.form['phone']
+    pvz = request.form['pvz']
 
-@rt.message(Command("start"))
-async def start(message: types.Message, state: FSMContext):
-    await message.answer("Здравствуйте! Введите ваше ФИО:")
-    await state.set_state(Form.fio)
+    # Генерация персонального кода
+    code = "YX" + str(random.randint(1000, 9999))
 
+    # Сообщение для пользователя
+    message = f"""
+🎉 *Регистрация прошла успешно!* 🎉
+Спасибо, что подписались 🙏
 
-@rt.message(Form.fio)
-async def get_fio(message: types.Message, state: FSMContext):
-    await state.update_data(fio=message.text)
-    await message.answer("Введите номер телефона:")
-    await state.set_state(Form.phone)
+📃 *Ваш профиль* 📃
 
+🪪 Персональный КОД: `{code}`
+👤 ФИО: {fio}
+📞 Номер: {phone}
+🏡 Адрес: 
+📍 ПВЗ: {pvz}
+📍 ПВЗ номер: +996550997200
+📍 Часы работы: 9:00–18:00
 
-@rt.message(Form.phone)
-async def get_phone(message: types.Message, state: FSMContext):
-    await state.update_data(phone=message.text)
+📩 Скопируйте ниже адрес склада в Китае:
+御玺{code}
+15727306315 
+浙江省金华市义乌市北苑街道春晗二区36栋好运国际货运5697库入仓号:御玺{code}
+    """
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Нариман")],
-            [KeyboardButton(text="Жийдалик УПТК")],
-            [KeyboardButton(text="Достук")],
-        ],
-        resize_keyboard=True,
-    )
+    # Отправляем пользователю в Telegram
+    # (замени chat_id на ID менеджера, если хочешь получать копии)
+    bot.send_message(8171485600, message, parse_mode="Markdown")
 
-    await message.answer("Выберите ПВЗ:", reply_markup=kb)
-    await state.set_state(Form.pvz)
-
-
-@rt.message(Form.pvz)
-async def get_pvz(message: types.Message, state: FSMContext):
-    global user_counter
-    user_counter += 1
-    code = user_counter
-
-    data = await state.get_data()
-    fio = data.get("fio", "Не указано")
-    phone = data.get("phone", "Не указано")
-    pvz = message.text
-
-    await state.clear()
-
-    # Сообщение пользователю
-    await message.answer(
-        f"Ваш код: {code}\n"
-        f"ФИО: {fio}\n"
-        f"Номер: {phone}\n"
-        f"ПВЗ: {pvz}\n\n"
-        f"Адрес в Китае: (вставьте ваш адрес)"
-    )
-
-    # Сообщение админу
-    await bot.send_message(
-        ADMIN_ID,
-        f"Новый пользователь!\n"
-        f"Код: {code}\n"
-        f"ФИО: {fio}\n"
-        f"Номер: {phone}\n"
-        f"ПВЗ: {pvz}"
-    )
-
-
-async def main():
-    await dp.start_polling(bot)
-
+    # Показываем страницу с переходом обратно в Telegram
+    return redirect("https://t.me/Abucargo_osh_bot")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    app.run(host="0.0.0.0", port=8080)
