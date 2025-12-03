@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dino Game (Партнер программиста)</title>
+    
+    <style>
+        /* Убираем стандартные отступы браузера */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #f7f7f7; /* Светлый фон */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh; /* Высота на весь экран */
+            font-family: monospace; /* Моноширинный шрифт, как в оригинале */
+        }
+
+        /* Игровой контейнер */
+        #game-container {
+            width: 600px; /* Ширина игрового поля */
+            height: 150px; /* Высота игрового поля */
+            border-bottom: 2px solid #333; /* Линия земли */
+            position: relative;
+            overflow: hidden; /* Важно, чтобы препятствия появлялись справа */
+            margin-top: 50px; /* Немного отступим от верхней части экрана */
+        }
+
+        /* Элемент динозавра */
+        #dino {
+            width: 20px;
+            height: 40px;
+            background-color: #333; /* Простой черный квадрат */
+            position: absolute;
+            bottom: 0; /* Динозавр стоит на "земле" */
+            left: 20px;
+            transition: background-color 0.1s; /* Для мигания при столкновении */
+        }
+
+        /* Класс для прыжка. Мы будем добавлять и удалять его через JS */
+        .jump {
+            animation: jump 0.5s linear;
+        }
+
+        /* Анимация прыжка: движение вверх и вниз */
+        @keyframes jump {
+            0% { bottom: 0; }
+            40% { bottom: 100px; } /* Максимальная высота прыжка */
+            60% { bottom: 100px; }
+            100% { bottom: 0; }
+        }
+
+        /* Стили для кактусов (препятствий) */
+        .cactus {
+            width: 15px;
+            height: 30px;
+            background-color: #333; /* Простой черный прямоугольник */
+            position: absolute;
+            bottom: 0;
+        }
+
+        /* Отображение счета */
+        #score {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 18px;
+            color: #333;
+            z-index: 10;
+        }
+
+        /* Сообщение о конце игры */
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #333;
+            font-weight: bold;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 2px solid #333;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="score">0</div>
+        <div id="game-over" class="hidden">ИГРА ОКОНЧЕНА</div>
+        
+        <div id="board">
+            <div id="dino"></div>
+        </div>
+    </div>
+
+    <p style="margin-top: 20px; font-family: monospace; color: #555;">
+        Нажмите **Пробел** или **Стрелку Вверх** для прыжка и начала игры!
+    </p>
+
+    <script>
+        // Получаем ссылки на элементы из HTML
+        const dino = document.getElementById('dino');
+        const board = document.getElementById('game-container'); // Используем game-container как родителя для кактусов
+        const scoreDisplay = document.getElementById('score');
+        const gameOverDisplay = document.getElementById('game-over');
+
+        let isJumping = false; // Флаг, чтобы избежать двойных прыжков
+        let score = 0; // Игровой счет
+        let isGameOver = false; // Флаг состояния игры
+        let cactusTimer = null; // Переменная для хранения таймера генерации кактусов
+        let gameActive = false; // Флаг, указывающий, что игра идет
+
+        // --- 1. Логика ПРЫЖКА и СТАРТА ИГРЫ ---
+
+        function jump() {
+            if (isJumping || isGameOver) {
+                return; 
+            }
+
+            // Если игра еще не началась, запускаем ее
+            if (!gameActive) {
+                startGame();
+            }
+
+            isJumping = true;
+            dino.classList.add('jump');
+
+            // Удаляем класс jump после завершения анимации (0.5 секунды)
+            setTimeout(() => {
+                dino.classList.remove('jump');
+                isJumping = false;
+            }, 500);
+        }
+
+        // Слушатель событий: при нажатии на пробел или стрелку вверх
+        document.addEventListener('keydown', (event) => {
+            // Пробел (keyCode 32) или стрелка вверх (keyCode 38)
+            if (event.keyCode === 32 || event.keyCode === 38) {
+                if (isGameOver) {
+                    // Если игра окончена, перезапускаем ее по нажатию
+                    resetGame();
+                } else {
+                    jump();
+                }
+            }
+        });
+        
+        // Функция, запускающая игру
+        function startGame() {
+            gameActive = true;
+            // Запускаем генерацию кактусов
+            cactusTimer = setInterval(generateCactus, 2000); 
+        }
+
+        // --- 2. Логика ГЕНЕРАЦИИ ПРЕПЯТСТВИЙ (КАКТУСОВ) ---
+
+        function generateCactus() {
+            if (isGameOver) return;
+
+            // Создаем новый элемент кактуса
+            const cactus = document.createElement('div');
+            cactus.classList.add('cactus');
+            board.appendChild(cactus);
+
+            // Начальная позиция кактуса (самый правый край игрового поля)
+            let cactusPosition = 600; // Ширина game-container из CSS
+            cactus.style.left = cactusPosition + 'px';
+
+            // Случайное время для появления следующего кактуса (от 1.5 до 3 секунд)
+            const randomTime = Math.random() * 1500 + 1500; 
+
+            // Интервал для движения кактуса
+            let moveInterval = setInterval(() => {
+                if (isGameOver) {
+                    clearInterval(moveInterval);
+                    cactus.remove();
+                    return;
+                }
+
+                // Движение: сдвигаем кактус влево на 5 пикселей
+                cactusPosition -= 5;
+                cactus.style.left = cactusPosition + 'px';
+
+                // Если кактус ушел за левый край, удаляем его и увеличиваем счет
+                if (cactusPosition < -20) {
+                    clearInterval(moveInterval);
+                    cactus.remove();
+                    score++;
+                    scoreDisplay.textContent = score;
+                }
+
+                // --- 3. Проверка СТОЛКНОВЕНИЯ ---
+
+                // Текущая позиция динозавра
+                const dinoRect = dino.getBoundingClientRect();
+                // Текущая позиция кактуса
+                const cactusRect = cactus.getBoundingClientRect();
+
+                // Проверка столкновения
+                // Столкновение происходит, если:
+                // 1. Правый край динозавра правее левого края кактуса (dinoRect.right > cactusRect.left)
+                // 2. И левый край динозавра левее правого края кактуса (dinoRect.left < cactusRect.right)
+                // 3. И нижний край динозавра ниже верхнего края кактуса (dinoRect.bottom > cactusRect.top)
+                if (dinoRect.right > cactusRect.left && 
+                    dinoRect.left < cactusRect.right && 
+                    dinoRect.bottom > cactusRect.top) {
+                    
+                     // 4. КОНЕЦ ИГРЫ
+                    gameOver(moveInterval);
+                }
+
+            }, 20); // Обновляем позицию каждые 20 миллисекунд
+
+            // Планируем генерацию следующего кактуса
+            if (!isGameOver) {
+                 cactusTimer = setTimeout(generateCactus, randomTime);
+            }
+        }
+        
+        // Функция конца игры
+        function gameOver(currentInterval) {
+            isGameOver = true;
+            gameActive = false;
+            
+            dino.style.backgroundColor = 'red'; // Динозавр мигает красным
+            gameOverDisplay.classList.remove('hidden'); // Показываем сообщение
+
+            // Очищаем интервал генерации новых кактусов
+            clearTimeout(cactusTimer);
+
+            // Останавливаем движение всех существующих кактусов
+            const allIntervals = setInterval(() => {}, 1000); // Получаем приблизительный максимальный ID интервала
+            for (let i = 1; i <= allIntervals; i++) {
+                clearInterval(i);
+            }
+        }
+
+        // Функция для перезапуска игры
+        function resetGame() {
+            isGameOver = false;
+            score = 0;
+            scoreDisplay.textContent = score;
+            dino.style.backgroundColor = '#333'; // Возвращаем обычный цвет
+            gameOverDisplay.classList.add('hidden'); // Скрываем сообщение
+
+            // Удаляем все старые кактусы
+            document.querySelectorAll('.cactus').forEach(c => c.remove());
+
+            // Запускаем игру заново
+            startGame();
+        }
+    </script>
+</body>
+</html>
